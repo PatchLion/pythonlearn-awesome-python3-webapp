@@ -1,0 +1,3 @@
+Wed, 17 Feb 2016 09:40:25 logging_test.py[line:20] DEBUG This is debug message
+Wed, 17 Feb 2016 09:40:25 logging_test.py[line:21] INFO This is info message
+Wed, 17 Feb 2016 09:40:25 logging_test.py[line:22] WARNING This is warning message
