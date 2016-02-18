@@ -60,13 +60,41 @@ def execute(sql, args):
 
 
 class Field(object):
-    pass
+    def __init__(self, name, column_type, primary_key, default):
+        self.name = name
+        self.column_type = column_type
+        self.primary_key = primary_key
+        self.default = default
+
+    def __str__(self):
+        return '<%s, %s:%s>' % (self.__class__.__name__, self.column_type, self.name)
 
 class StringField(Field):
-    pass
+    def __init__(self, name=None, primary_key=False, default=None, ddl='VARCHAR(100)'):
+        super().__init__(name, ddl, primary_key, default)
+
 
 class IntegerField(Field):
-    pass
+    def __init__(self, name=None, primary_key=False, default=0):
+        super().__init__(name, 'BIGINT', primary_key, default)
+
+class BooleanField(Field):
+    def __init__(self, name=None, primar_key=False, default=False):
+        super().__init__(name, 'BOOLEAN', False, default)
+
+class FloatField(Field):
+    def __init__(self, name=None, primary_key=False, default=0.0):
+        super().__init__(name, 'REAL', False, default)
+
+class TextField(Field):
+    def __init__(self, name=None, default=None):
+        super().__init__(name, 'TEXT', False, default)
+
+def create_args_string(num):
+    L = []
+    for n in range(num):
+        L.append('?')
+    return ', '.join(L)
 
 class ModelMetaclass(type):
     def __new__(cls, name, bases, attrs):
@@ -102,9 +130,36 @@ class ModelMetaclass(type):
         attrs['__fields__'] = fields #除主键以外的属性名
         #构造默认的SELECT，INSERT，UPDATE和DELETE语句
         attrs['__select__'] = 'SELECT %s, %s from %s' % (primaryKey, ','.join(escaped_fields), tableName)
-        attrs['__insert__'] = 'INSERT INTO %s (%s, %s) VALUE (%s)' % (tableName, ', '.join(escaped_fields), primaryKey, ))
-
+        attrs['__insert__'] = 'INSERT INTO %s (%s, %s) VALUE (%s)' % (tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields)+1))
+        attrs['__update__'] = 'UPDATE %s SET %s WHERE %s=?' % (tableName, ', '.join(map(lambda f:'%s=?' % (mappings.get(f).name or f), fields)), primaryKey)
+        attrs['__delete__'] = 'DELETE FROM %s WHERE %s=?' % (tableName, primaryKey)
+        return type.__new__(cls, name, bases, attrs)
 
 
 class Model(dict, metaclass=ModelMetaclass):
-    pass
+    def __init__(self, **kw):
+        super(Model, self).__init__(**kw)
+
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError:
+            raise  AttributeError(r"'Model' object has no attribute '%s'" % key)
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+    def getValue(self, key):
+        return getattr(self, key, None)
+
+    def getValueOrDefault(self, key):
+        value = getattr(self, key, None)
+        if value is None:
+            field = self.__mappings__[key]
+            if field.default is not None:
+                value = field.default() if callable(field.default) else field.default
+                logging.debug('using default value for %s: %s' % (key, str(value)))
+                setattr(self, key, value)
+        return value
+
+    
